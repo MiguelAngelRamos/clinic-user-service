@@ -11,7 +11,7 @@ FROM node:22.11.0-alpine3.20 AS deps
 # Build tools para módulos nativos si los hubiera en el futuro
 RUN apk add --no-cache libc6-compat
 
-RUN corepack enable && corepack prepare pnpm@10.33.0 --activate
+RUN npm install -g pnpm@10.33.0
 
 WORKDIR /app
 
@@ -24,7 +24,7 @@ RUN --mount=type=cache,id=pnpm-store-user,target=/root/.local/share/pnpm/store \
 # ---- Stage 2: builder ---------------------------------------
 FROM node:22.11.0-alpine3.20 AS builder
 
-RUN corepack enable && corepack prepare pnpm@10.33.0 --activate
+RUN npm install -g pnpm@10.33.0
 
 WORKDIR /app
 
