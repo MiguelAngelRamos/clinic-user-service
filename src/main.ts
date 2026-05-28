@@ -1,6 +1,7 @@
 // src/main.ts
 import { NestFactory } from "@nestjs/core";
 import { ValidationPipe, Logger } from "@nestjs/common";
+import { MicroserviceOptions, Transport } from "@nestjs/microservices";
 import { DocumentBuilder, SwaggerModule } from "@nestjs/swagger";
 import helmet from "helmet";
 import { AppModule } from "./app.module";
@@ -20,8 +21,7 @@ async function bootstrap() {
     credentials: true,
   });
 
-  // Prefijo global del microservicio
-  app.setGlobalPrefix("users");
+
 
   // ValidationPipe global
   app.useGlobalPipes(
@@ -56,6 +56,21 @@ async function bootstrap() {
 
     SwaggerModule.setup("docs", app, SwaggerModule.createDocument(app, config));
   }
+
+  // Transporte AMQP — consume eventos de RabbitMQ (user.registered)
+  const rmqUrl = `amqp://${process.env.RABBITMQ_USER}:${process.env.RABBITMQ_PASSWORD}@${process.env.RABBITMQ_HOST ?? "localhost"}:${process.env.RABBITMQ_PORT ?? "5672"}/${process.env.RABBITMQ_VHOST ?? "clinic"}`;
+  app.connectMicroservice<MicroserviceOptions>({
+    transport: Transport.RMQ,
+    options: {
+      urls: [rmqUrl],
+      queue: "user.registered",
+      queueOptions: { durable: true },
+      noAck: false,
+      prefetchCount: 1,
+    },
+  });
+
+  await app.startAllMicroservices();
 
   const port = process.env.PORT ?? 3002;
   await app.listen(port);
