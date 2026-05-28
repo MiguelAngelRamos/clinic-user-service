@@ -21,6 +21,9 @@ data:
   DB_NAME: "user_db"              # BD propia del user-service
   DB_SSL: "false"
   ALLOWED_ORIGINS: "http://192.168.1.28:8000"
+  RABBITMQ_HOST: "rabbitmq"
+  RABBITMQ_PORT: "5672"
+  RABBITMQ_VHOST: "clinic"
 
 ---
 # ---- PVC — almacenamiento de PostgreSQL ---------------------
@@ -138,6 +141,16 @@ spec:
                 secretKeyRef:
                   name: user-postgres-secret
                   key: POSTGRES_PASSWORD
+            - name: RABBITMQ_USER
+              valueFrom:
+                secretKeyRef:
+                  name: rabbitmq-secret
+                  key: RABBITMQ_USER
+            - name: RABBITMQ_PASSWORD
+              valueFrom:
+                secretKeyRef:
+                  name: rabbitmq-secret
+                  key: RABBITMQ_PASSWORD
           resources:
             requests:
               cpu: 80m
