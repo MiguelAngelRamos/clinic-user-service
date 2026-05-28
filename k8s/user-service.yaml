@@ -21,9 +21,9 @@ data:
   DB_NAME: "user_db"              # BD propia del user-service
   DB_SSL: "false"
   ALLOWED_ORIGINS: "http://192.168.1.28:8000"
-  RABBITMQ_HOST: "rabbitmq"
-  RABBITMQ_PORT: "5672"
-  RABBITMQ_VHOST: "clinic"
+  # NOTA: RABBITMQ_HOST/PORT/VHOST eliminados — K8s autoinyecta
+  # RABBITMQ_PORT="tcp://IP:5672" por service-discovery legacy, lo que
+  # rompe la construcción manual de la URL. Usar RABBITMQ_URL directamente.
 
 ---
 # ---- PVC — almacenamiento de PostgreSQL ---------------------
@@ -151,6 +151,10 @@ spec:
                 secretKeyRef:
                   name: rabbitmq-secret
                   key: RABBITMQ_PASSWORD
+            # K8s sustituye $(RABBITMQ_USER) y $(RABBITMQ_PASSWORD) porque
+            # están definidas antes en esta lista env.
+            - name: RABBITMQ_URL
+              value: "amqp://$(RABBITMQ_USER):$(RABBITMQ_PASSWORD)@rabbitmq:5672/clinic"
           resources:
             requests:
               cpu: 80m

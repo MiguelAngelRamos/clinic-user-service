@@ -58,7 +58,12 @@ async function bootstrap() {
   }
 
   // Transporte AMQP — consume eventos de RabbitMQ (user.registered)
-  const rmqUrl = `amqp://${process.env.RABBITMQ_USER}:${process.env.RABBITMQ_PASSWORD}@${process.env.RABBITMQ_HOST ?? "localhost"}:${process.env.RABBITMQ_PORT ?? "5672"}/${process.env.RABBITMQ_VHOST ?? "clinic"}`;
+  // URL completa inyectada por K8s para evitar colisión con la variable
+  // RABBITMQ_PORT que el service-discovery legacy autoinyecta como tcp://IP:5672.
+  const rmqUrl = process.env.RABBITMQ_URL;
+  if (!rmqUrl) {
+    throw new Error("RABBITMQ_URL no está definida");
+  }
   app.connectMicroservice<MicroserviceOptions>({
     transport: Transport.RMQ,
     options: {
