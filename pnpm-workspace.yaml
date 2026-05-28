@@ -1,0 +1,9 @@
+packages:
+  - '.'
+
+allowBuilds:
+  '@nestjs/core': true
+  '@scarf/scarf': false
+
+overrides:
+  lodash: '4.18.1'

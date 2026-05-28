@@ -1,0 +1,210 @@
+# ============================================================
+#  k8s/user-service.yaml
+#  Manifiestos Kubernetes del clinic-user-service
+#  Namespace: clinic
+#
+#  Secrets requeridos (crear con kubectl — nunca en YAML):
+#    user-postgres-secret: POSTGRES_USER, POSTGRES_PASSWORD, POSTGRES_DB
+# ============================================================
+
+# ---- ConfigMap — variables NO sensibles ---------------------
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: user-service-config
+  namespace: clinic
+data:
+  NODE_ENV: "production"
+  PORT: "3002"
+  DB_HOST: "user-postgres"        # Service de PostgreSQL propio
+  DB_PORT: "5432"
+  DB_NAME: "user_db"              # BD propia del user-service
+  DB_SSL: "false"
+  ALLOWED_ORIGINS: "http://192.168.1.28:8000"
+
+---
+# ---- PVC — almacenamiento de PostgreSQL ---------------------
+apiVersion: v1
+kind: PersistentVolumeClaim
+metadata:
+  name: user-postgres-pvc
+  namespace: clinic
+spec:
+  accessModes:
+    - ReadWriteOnce
+  resources:
+    requests:
+      storage: 1Gi
+
+---
+# ---- Deployment — PostgreSQL propio del user-service --------
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: user-postgres
+  namespace: clinic
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: user-postgres
+  template:
+    metadata:
+      labels:
+        app: user-postgres
+    spec:
+      containers:
+        - name: user-postgres
+          image: postgres:16-alpine
+          ports:
+            - containerPort: 5432
+          env:
+            - name: POSTGRES_USER
+              valueFrom:
+                secretKeyRef:
+                  name: user-postgres-secret
+                  key: POSTGRES_USER
+            - name: POSTGRES_PASSWORD
+              valueFrom:
+                secretKeyRef:
+                  name: user-postgres-secret
+                  key: POSTGRES_PASSWORD
+            - name: POSTGRES_DB
+              valueFrom:
+                secretKeyRef:
+                  name: user-postgres-secret
+                  key: POSTGRES_DB
+          volumeMounts:
+            - name: user-postgres-data
+              mountPath: /var/lib/postgresql/data
+          readinessProbe:
+            exec:
+              command: [pg_isready, -U, user_svc_user, -d, user_db]
+            initialDelaySeconds: 10
+            periodSeconds: 5
+      volumes:
+        - name: user-postgres-data
+          persistentVolumeClaim:
+            claimName: user-postgres-pvc
+
+---
+# ---- Service — PostgreSQL del user-service ------------------
+apiVersion: v1
+kind: Service
+metadata:
+  name: user-postgres
+  namespace: clinic
+spec:
+  selector:
+    app: user-postgres
+  ports:
+    - port: 5432
+      targetPort: 5432
+
+---
+# ---- Deployment — el microservicio user ---------------------
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: user-service
+  namespace: clinic
+spec:
+  replicas: 2
+  selector:
+    matchLabels:
+      app: user-service
+  template:
+    metadata:
+      labels:
+        app: user-service
+    spec:
+      containers:
+        - name: user-service
+          image: ghcr.io/miguelangelramos/clinic-user-service:latest
+          imagePullPolicy: Always
+          ports:
+            - containerPort: 3002
+          envFrom:
+            - configMapRef:
+                name: user-service-config
+          env:
+            - name: DB_USERNAME
+              valueFrom:
+                secretKeyRef:
+                  name: user-postgres-secret
+                  key: POSTGRES_USER
+            - name: DB_PASSWORD
+              valueFrom:
+                secretKeyRef:
+                  name: user-postgres-secret
+                  key: POSTGRES_PASSWORD
+          resources:
+            requests:
+              cpu: 80m
+              memory: 96Mi
+            limits:
+              cpu: 300m
+              memory: 192Mi
+          readinessProbe:
+            httpGet:
+              path: /users/health
+              port: 3002
+            initialDelaySeconds: 15
+            periodSeconds: 10
+            failureThreshold: 5
+          livenessProbe:
+            httpGet:
+              path: /users/health
+              port: 3002
+            initialDelaySeconds: 30
+            periodSeconds: 15
+            failureThreshold: 5
+
+---
+# ---- Service — expone el user-service -----------------------
+apiVersion: v1
+kind: Service
+metadata:
+  name: user-service
+  namespace: clinic
+spec:
+  selector:
+    app: user-service
+  ports:
+    - port: 3002
+      targetPort: 3002
+
+---
+# ---- HPA — escalamiento del user-service --------------------
+apiVersion: autoscaling/v2
+kind: HorizontalPodAutoscaler
+metadata:
+  name: user-service-hpa
+  namespace: clinic
+spec:
+  scaleTargetRef:
+    apiVersion: apps/v1
+    kind: Deployment
+    name: user-service
+  minReplicas: 2
+  maxReplicas: 5
+  metrics:
+    - type: Resource
+      resource:
+        name: cpu
+        target:
+          type: Utilization
+          averageUtilization: 60
+  behavior:
+    scaleUp:
+      stabilizationWindowSeconds: 30
+      policies:
+        - type: Pods
+          value: 2
+          periodSeconds: 30
+    scaleDown:
+      stabilizationWindowSeconds: 120
+      policies:
+        - type: Pods
+          value: 1
+          periodSeconds: 60
