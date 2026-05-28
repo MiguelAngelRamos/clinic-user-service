@@ -69,6 +69,11 @@ async function bootstrap() {
     options: {
       urls: [rmqUrl],
       queue: "user.registered",
+      // La cola ya fue declarada por el broker vía definitions.json con
+      // x-message-ttl y x-dead-letter-exchange. noAssert evita que el
+      // consumer intente re-declararla con argumentos distintos y reciba
+      // PRECONDITION-FAILED (406).
+      noAssert: true,
       queueOptions: { durable: true },
       noAck: false,
       prefetchCount: 1,
