@@ -51,6 +51,31 @@ X-User-Email: email@ejemplo.com
 **Expone (HTTP REST):**
 - `GET /users/:id/exists` → usado por `patient-service` y `doctor-service`
 
+## Migraciones
+
+### Desarrollo (sobre TypeScript, con ts-node y `ormconfig.ts`)
+
+```bash
+pnpm migration:run      # aplicar pendientes
+pnpm migration:revert   # revertir la última
+pnpm migration:show     # ver estado
+```
+
+### Producción / Docker (sobre código compilado)
+
+La imagen de producción solo contiene `dist/` y `node_modules` (sin scripts de
+pnpm). Tras desplegar, ejecuta las migraciones **manualmente** dentro del
+contenedor usando el DataSource compilado `dist/database/data-source.js`:
+
+```bash
+node node_modules/typeorm/cli.js migration:run -d dist/database/data-source.js
+```
+
+Las variables de entorno de BD (`DB_HOST`, `DB_PORT`, `DB_USERNAME`,
+`DB_PASSWORD`, `DB_NAME`, `DB_SSL`) deben estar presentes en el contenedor.
+No se ejecutan automáticamente al arrancar (`migrationsRun` está desactivado a
+propósito) para mantener el control sobre cuándo se aplican.
+
 ## Kubernetes
 
 ```bash
